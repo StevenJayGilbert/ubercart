@@ -132,6 +132,7 @@ function quoteCallback(products) {
  * Parse and render the returned shipping quotes.
  */
 function displayQuote(data) {
+  var page = $('input:hidden[name*="[page]"]').val();
   var quoteDiv = $("#quote").empty()/* .append("<input type=\"hidden\" name=\"method-quoted\" value=\"" + details["method"] + "\" />") */;
   var numQuotes = 0;
   var errorFlag = true;
@@ -200,12 +201,12 @@ function displayQuote(data) {
     quoteDiv.append("<input type=\"hidden\" name=\"quote-form\" value=\"" + Drupal.encodeURIComponent(quoteForm) + "\" />");
   }
 
-  /* if (page == "checkout") {
+  if (page == "checkout") {
     if (window.getTax) {
       getTax();
     }
-    else if (window.render_line_items) {
+    if (window.render_line_items) {
       render_line_items();
     }
-  } */
+  }
 }

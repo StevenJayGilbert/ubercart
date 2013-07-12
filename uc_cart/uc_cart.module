@@ -987,6 +987,7 @@ function uc_cart_view_form($form_state, $items = NULL) {
 function uc_cart_view_form_submit($form, &$form_state) {
   // Remove the cart order variable if the customer came here during checkout.
   if (isset($_SESSION['cart_order'])) {
+    if(module_exists('mp_tweaks')) mp_tweaks_delete_cart_order($_SESSION['cart_order']);
     unset($_SESSION['cart_order']);
   }
 
@@ -1489,6 +1490,7 @@ function uc_cart_update_item($item) {
  */
 function uc_cart_add_item($nid, $qty = 1, $data = NULL, $cid = NULL, $msg = TRUE, $check_redirect = TRUE, $rebuild = TRUE) {
   if (isset($_SESSION['cart_order'])) {
+    if(module_exists('mp_tweaks')) mp_tweaks_delete_cart_order($_SESSION['cart_order']);
     unset($_SESSION['cart_order']);
   }
 

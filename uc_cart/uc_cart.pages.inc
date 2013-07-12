@@ -20,6 +20,7 @@ function uc_cart_view() {
 
   // Clear the cart order session variable if it exists.
   if (!empty($_SESSION['cart_order'])) {
+    if(module_exists('mp_tweaks')) mp_tweaks_delete_cart_order($_SESSION['cart_order']);
     unset($_SESSION['cart_order']);
   }
 
@@ -124,6 +125,7 @@ function uc_cart_checkout_form() {
   if (isset($_POST['op']) && $_POST['op'] == t('Cancel')) {
     if (isset($_SESSION['cart_order']) && intval($_SESSION['cart_order']) > 0) {
       uc_order_comment_save($_SESSION['cart_order'], 0, t('Customer cancelled this order from the checkout form.'));
+      if(module_exists('mp_tweaks')) mp_tweaks_delete_cart_order($_SESSION['cart_order']);
       unset($_SESSION['cart_order']);
     }
     drupal_goto('cart');
@@ -139,6 +141,7 @@ function uc_cart_checkout_form() {
   // Check the referer URI to clear order details and prevent identity theft.
   if (uc_referer_check(array('cart/checkout', 'cart/checkout/review'))) {
     if ($order == FALSE || uc_order_status_data($order->order_status, 'state') != 'in_checkout') {
+      if(module_exists('mp_tweaks')) mp_tweaks_delete_cart_order($_SESSION['cart_order']);
       unset($_SESSION['cart_order']);
       $order = new UcOrder();
     }
@@ -147,6 +150,7 @@ function uc_cart_checkout_form() {
     }
   }
   else {
+    if(module_exists('mp_tweaks')) mp_tweaks_delete_cart_order($_SESSION['cart_order']);
     unset($_SESSION['cart_order']);
     $order = new UcOrder();
   }
@@ -372,6 +376,7 @@ function uc_cart_checkout_review() {
   $order = uc_order_load($_SESSION['cart_order']);
 
   if ($order === FALSE || uc_order_status_data($order->order_status, 'state') != 'in_checkout') {
+    if(module_exists('mp_tweaks')) mp_tweaks_delete_cart_order($_SESSION['cart_order']);
     unset($_SESSION['cart_order']);
     drupal_goto('cart/checkout');
   }

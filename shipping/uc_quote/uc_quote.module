@@ -859,7 +859,7 @@ function uc_checkout_pane_quotes($op, &$order, $arg2) {
           if (window.getTax) {
             getTax();
           }
-          else if (window.render_line_items) {
+          if (window.render_line_items) {
             render_line_items();
           }
         }).filter("[value='. $default .']").click();
@@ -1152,7 +1152,7 @@ function uc_quote_cache_quotes($form) {
             getTax();
             setTaxCallbacks();
           }
-          else if (window.render_line_items) {
+          if (window.render_line_items) {
             render_line_items();
           }
         })};', 'inline');
