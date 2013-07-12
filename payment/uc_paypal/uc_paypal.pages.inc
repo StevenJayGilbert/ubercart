@@ -118,7 +118,6 @@ function uc_paypal_ipn() {
         $comment = t('PayPal transaction ID: @txn_id', array('@txn_id' => $txn_id));
         uc_payment_enter($order_id, 'paypal_wps', $payment_amount, $order->uid, NULL, $comment);
         uc_cart_complete_sale($order);
-        uc_order_comment_save($order_id, 0, t('Payment of @amount @currency submitted through PayPal.', array('@amount' => uc_price($payment_amount, $context, $options), '@currency' => $payment_currency)), 'order', 'payment_received');
         uc_order_comment_save($order_id, 0, t('PayPal IPN reported a payment of @amount @currency.', array('@amount' => uc_price($payment_amount, $context, $options), '@currency' => $payment_currency)));
         break;
 
@@ -320,6 +319,7 @@ function uc_paypal_ec_review_form($form_state, $order) {
       '#type' => 'textarea',
       '#title' => t('Order comments'),
       '#description' => t('Special instructions or notes regarding your order.'),
+      '#wysiwyg' => FALSE,
     );
   }
 
@@ -436,7 +436,6 @@ function uc_paypal_complete($order) {
 
 // Handles a canceled Website Payments Standard sale.
 function uc_paypal_cancel() {
-  if(module_exists('mp_tweaks')) mp_tweaks_delete_cart_order($_SESSION['cart_order']);
   unset($_SESSION['cart_order']);
 
   drupal_set_message(t('Your PayPal payment was cancelled. Please feel free to continue shopping or contact us for assistance.'));

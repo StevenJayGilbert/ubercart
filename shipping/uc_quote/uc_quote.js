@@ -17,17 +17,17 @@ function setQuoteCallbacks(products, context) {
   };
   $("input[name*=delivery_postal_code]:not(.getQuotes-processed)", context).addClass('getQuotes-processed').change(triggerQuoteCallback);
   $("input[id*=quote-button]:not(.getQuotes-processed)", context).addClass('getQuotes-processed').click(function() {
-    // returns false to prevent default actions and propogation
+    // returns false to prevent default actions and propagation
     return quoteCallback(products);
   });
   $("input[name*=quote_method]:not(.getQuotes-processed)", context).addClass('getQuotes-processed').change(function() {
-    // returns false to prevent default actions and propogation
+    // returns false to prevent default actions and propagation
     return quoteCallback(products);
   });
   $("select[name*=delivery_address_select]:not(.getQuotes-processed)", context).addClass('getQuotes-processed').change(function() {
     $("input[name*=delivery_postal_code]").trigger('change');
   });
-  $("input[name*=copy_address]:not(.getQuotes-processed)", context).addClass('getQuotes-processed').click(function() {
+  $("input[id*=delivery-copy-address]:not(.getQuotes-processed)", context).addClass('getQuotes-processed').click(function() {
     if (copy_box_checked == true) {
       $("input[name*=billing_postal_code]:not(.getQuotes-processed)", context).addClass('getQuotes-processed').bind('change', triggerQuoteCallback);
       $("select[name*=billing_address_select]:not(.getQuotes-processed)", context).addClass('getQuotes-processed').bind('change', triggerQuoteCallback);
@@ -72,7 +72,7 @@ function quoteCallback(products) {
 
   page = $("input:hidden[name*=page]").val();
   details = new Object();
-  details["uid"] = $("input[name*=uid]").val();
+  details["uid"] = $("input:hidden[name*=uid]").val();
   //details["details[zone]"] = $("select[name*=delivery_zone] option:selected").val();
   //details["details[country]"] = $("select[name*=delivery_country] option:selected").val();
 
@@ -88,6 +88,10 @@ function quoteCallback(products) {
   $("input[name*=billing_]").each(function(i) {
     details["details[billing][" + $(this).attr("name").split("billing_")[1].replace(/]/, "") + "]"] = $(this).val();
   });
+  var paymentMethod = $('input[name*=payment_method]:checked').val();
+  if (paymentMethod !== undefined) {
+    details["payment_method"] = paymentMethod;
+  }
 
   if (!!products) {
     details["products"] = products;
@@ -99,7 +103,6 @@ function quoteCallback(products) {
       products += "|" + $("input[name^='products[" + i + "]']").filter("[name$='[nid]']").val();
       products += "^" + $("input[name^='products[" + i + "]']").filter("[name$='[title]']").val();
       products += "^" + $("input[name^='products[" + i + "]']").filter("[name$='[model]']").val();
-      products += "^" + $("input[name^='products[" + i + "]']").filter("[name$='[manufacturer]']").val();
       products += "^" + $("input[name^='products[" + i + "]']").filter("[name$='[qty]']").val();
       products += "^" + $("input[name^='products[" + i + "]']").filter("[name$='[cost]']").val();
       products += "^" + $("input[name^='products[" + i + "]']").filter("[name$='[price]']").val();
@@ -129,7 +132,6 @@ function quoteCallback(products) {
  * Parse and render the returned shipping quotes.
  */
 function displayQuote(data) {
-  var page = $('input:hidden[name*="[page]"]').val();	
   var quoteDiv = $("#quote").empty()/* .append("<input type=\"hidden\" name=\"method-quoted\" value=\"" + details["method"] + "\" />") */;
   var numQuotes = 0;
   var errorFlag = true;
@@ -168,7 +170,7 @@ function displayQuote(data) {
       if (data[i].notes) {
         item += '<div class="quote-notes">' + data[i].notes + "</div>";
       }
-      if (data[i].rate == undefined && item.length) {
+      if (data[i].rate == undefined && item.length && label) {
         item = label + ': ' + item;
       }
       quoteDiv.append('<div class="form-item">' + item + "</div>\n");
@@ -198,12 +200,12 @@ function displayQuote(data) {
     quoteDiv.append("<input type=\"hidden\" name=\"quote-form\" value=\"" + Drupal.encodeURIComponent(quoteForm) + "\" />");
   }
 
-  if (page == "checkout") {
+  /* if (page == "checkout") {
     if (window.getTax) {
       getTax();
     }
-    if (window.render_line_items) {
+    else if (window.render_line_items) {
       render_line_items();
     }
-  }  
+  } */
 }

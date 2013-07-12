@@ -10,7 +10,7 @@
  ******************************************************************************/
 
 /**
- * Implementation of hook_menu().
+ * Implements hook_menu().
  */
 function uc_flatrate_menu() {
   $items = array();
@@ -43,7 +43,7 @@ function uc_flatrate_menu() {
 }
 
 /**
- * Implementation of hook_form_alter().
+ * Implements hook_form_alter().
  *
  * Add a form element for the shipping rate of a product.
  */
@@ -85,7 +85,7 @@ function uc_flatrate_form_alter(&$form, $form_state, $form_id) {
 }
 
 /**
- * Implementation of hook_nodeapi().
+ * Implements hook_nodeapi().
  */
 function uc_flatrate_nodeapi(&$node, $op) {
   if (uc_product_is_product($node->type)) {
@@ -97,7 +97,7 @@ function uc_flatrate_nodeapi(&$node, $op) {
             db_query("DELETE FROM {uc_flatrate_products} WHERE vid = %d", $node->vid);
           }
           foreach ($node->flatrate as $mid => $rate) {
-            if ($rate !== '') {
+            if (is_numeric($rate) && $rate >= 0) {
               db_query("INSERT INTO {uc_flatrate_products} (vid, nid, mid, rate) VALUES (%d, %d, %d, %f)",
                 $node->vid, $node->nid, $mid, $rate);
             }
@@ -127,7 +127,7 @@ function uc_flatrate_nodeapi(&$node, $op) {
  ******************************************************************************/
 
 /**
- * Implementation of hook_ca_predicate().
+ * Implements hook_ca_predicate().
  *
  * Connect the quote action with the quote event.
  */
@@ -159,7 +159,7 @@ function uc_flatrate_ca_predicate() {
 }
 
 /**
- * Implementation of Ubercart's hook_shipping_method().
+ * Implements Ubercart's hook_shipping_method().
  */
 function uc_flatrate_shipping_method() {
   $methods = array();
@@ -213,7 +213,7 @@ function uc_flatrate_quote($products, $details, $method) {
 
   if ($method = db_fetch_object(db_query("SELECT * FROM {uc_flatrate_methods} WHERE mid = %d", $mid))) {
     // Start at the base rate.
-    $rate = $method->base_rate;
+    $rate = uc_price($method->base_rate, $context);
 
     foreach ($products as $product) {
       if (empty($product->flatrate) || is_null($product->flatrate[$mid])) {
@@ -234,10 +234,9 @@ function uc_flatrate_quote($products, $details, $method) {
       }
     }
 
-    $altered = uc_price($rate, $context);
     $context['revision'] = 'formatted';
     $formatted = uc_price($rate, $context);
-    $quotes[] = array('rate' => $altered, 'format' => $formatted, 'option_label' => check_plain($method->label));
+    $quotes[] = array('rate' => $rate, 'format' => $formatted, 'option_label' => check_plain($method->label));
   }
 
   return $quotes;

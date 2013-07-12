@@ -2,8 +2,7 @@
 
 /**
  * @file
- * This file contains the callbacks for the default checkout panes supplied with
- * Ubercart and their corresponding helper functions.
+ * Callbacks for the default Ubercart checkout panes and their corresponding helper functions.
  *
  * Checkout panes are defined using hook_checkout_pane() and use a callback to
  * handle the different processes involved in completing the checkout form.  The
@@ -12,7 +11,7 @@
  */
 
 /**
- * Display the cart contents for review during checkout.
+ * Displays the cart contents for review during checkout.
  */
 function uc_checkout_pane_cart($op) {
   switch ($op) {
@@ -25,59 +24,29 @@ function uc_checkout_pane_cart($op) {
 
     case 'review':
       $items = uc_cart_get_contents();
-      $output = '<table>';
-      $context = array(
-        'revision' => 'themed',
-        'type' => 'cart_item',
-        'subject' => array(),
-      );
-      foreach ($items as $item) {
-        $desc = check_plain($item->title) . uc_product_get_description($item);
-
-        $price_info = array(
-          'price' => $item->price,
-          'qty' => $item->qty,
-        );
-        $context['subject'] = array(
-          'cart' => $items,
-          'cart_item' => $item,
-          'node' => node_load($item->nid),
-        );
-        $output .= '<tr valign="top"><td>'. $item->qty .'&times;</td><td width="100%">'. $desc
-                  .'</td><td nowrap="nowrap">'. uc_price($price_info, $context) .'</td></tr>';
-      }
-      $output .= '</table>';
-      $review[] = $output;
+      $review[] = theme('uc_checkout_pane_cart_review', $items);
       return $review;
   }
 }
 
 /**
- * Get the user's email address for login.
+ * Gets the user's email address for login.
  */
 function uc_checkout_pane_customer($op, &$arg1, $arg2) {
   global $user;
 
   switch ($op) {
     case 'view':
-      if (!empty($arg1->primary_email)) {
-        $email = $arg1->primary_email;
-      }
-      elseif (isset($user->mail)) {
-        $email = $user->mail;
-      }
-      else {
-        $email = '';
-      }
-
       if ($user->uid) {
-        $description = t('Order information will be sent to your account e-mail listed below.');// .'<br />'
-        $contents['primary_email'] = array('#type' => 'hidden', '#value' => check_plain($email));
+        $email = $user->mail;
+        $description = t('Order information will be sent to your account e-mail listed below.');// . '<br />'
+        $contents['primary_email'] = array('#type' => 'hidden', '#value' => $email);
         $contents['email_text'] = array(
           '#value' => '<div>'. t('<b>E-mail address:</b> @email (<a href="!url">edit</a>)', array('@email' => $email, '!url' => url('user/'. $user->uid .'/edit', array('query' => drupal_get_destination())))) .'</div>',
         );
       }
       else {
+        $email = $arg1->primary_email;
         $description = t('Enter a valid email address for this order or <a href="!url">click here</a> to login with an existing account and return to checkout.', array('!url' => url('user/login', array('query' => drupal_get_destination()))));
         $contents['primary_email'] = uc_textfield(t('E-mail address'), $email, TRUE, NULL, 64);
       }
@@ -97,7 +66,7 @@ function uc_checkout_pane_customer($op, &$arg1, $arg2) {
           $contents['new_account']['name'] = array(
             '#type' => 'textfield',
             '#title' => t('Username'),
-            '#default_value' => $arg1->data['new_user']['name'],
+            '#default_value' => isset($arg1->data['new_user']['name']) ? $arg1->data['new_user']['name'] : '',
             '#maxlength' => 60,
             '#size' => 32,
           );
@@ -127,16 +96,6 @@ function uc_checkout_pane_customer($op, &$arg1, $arg2) {
           );
           $contents['new_account'] = array_merge($array, $contents['new_account']);
         }
-
-        /**
-         * This code adds profile fields required for registration to the
-         * customer checkout pane.  However, I don't have the time to fool with
-         * validation/submission stuff, so I'm postponing this feature. -RS
-        $null = NULL;
-        $extra = _user_forms($null, NULL, NULL, 'register');
-        if (!empty($extra)) {
-          $contents = array_merge($contents, $extra);
-        }*/
       }
 
       return array('description' => $description, 'contents' => $contents);
@@ -156,9 +115,9 @@ function uc_checkout_pane_customer($op, &$arg1, $arg2) {
       unset($_SESSION['email_match']);
 
       // Invalidate if an account already exists for this e-mail address, and the user is not logged into that account
-      if ($user->uid == 0 && !empty($arg2['primary_email'])) {
+      if (!variable_get('uc_cart_mail_existing', TRUE) && $user->uid == 0 && !empty($arg2['primary_email'])) {
         if (db_result(db_query("SELECT uid FROM {users} WHERE LOWER(mail) = LOWER('%s')", $arg2['primary_email'])) > 0) {
-          form_set_error('panes][customer][primary_email', t('An account already exists for your e-mail address. You will either need to login with with this e-mail address or use a different e-mail address.'));
+          form_set_error('panes][customer][primary_email', t('An account already exists for your e-mail address. You will either need to login with this e-mail address or use a different e-mail address.'));
         }
       }
 
@@ -166,23 +125,33 @@ function uc_checkout_pane_customer($op, &$arg1, $arg2) {
       if ((variable_get('uc_cart_new_account_name', FALSE) ||
         variable_get('uc_cart_new_account_password', FALSE)) &&
         $user->uid == 0) {
-        // Validate the username.
-        if (variable_get('uc_cart_new_account_name', FALSE) && !empty($arg2['new_account']['name'])) {
-          $message = user_validate_name($arg2['new_account']['name']);
-          if (!empty($message)) {
-            form_set_error('panes][customer][new_account][name', $message);
-          }
-          if (db_fetch_object(db_query("SELECT uid FROM {users} WHERE LOWER(name) = LOWER('%s')", $arg2['new_account']['name'])) > 0) {
-            form_set_error('panes][customer][new_account][name', t('The username %name is already taken. Please enter a different name or leave the field blank for your username to be your e-mail address.', array('%name' => $arg2['new_account']['name'])));
-          }
-          $arg1->data['new_user']['name'] = $arg2['new_account']['name'];
+        // Skip if an account already exists for this e-mail address.
+        if (variable_get('uc_cart_mail_existing', TRUE) && db_result(db_query("SELECT uid FROM {users} WHERE LOWER(mail) = LOWER('%s')", $arg2['primary_email'])) > 0) {
+          drupal_set_message(t('An account already exists for your e-mail address. The new account details you entered will be disregarded.'));
         }
-        // Validate the password.
-        if (variable_get('uc_cart_new_account_password', FALSE)) {
-          if (strcmp($arg2['new_account']['pass'], $arg2['new_account']['pass_confirm'])) {
-            form_set_error('panes][customer][new_account][pass_confirm', t('The passwords you entered did not match. Please try again.'));
+        else {
+          // Validate the username.
+          if (variable_get('uc_cart_new_account_name', FALSE) && !empty($arg2['new_account']['name'])) {
+            $message = user_validate_name($arg2['new_account']['name']);
+            if (!empty($message)) {
+              form_set_error('panes][customer][new_account][name', $message);
+            }
+            elseif (db_fetch_object(db_query("SELECT uid FROM {users} WHERE LOWER(name) = LOWER('%s')", $arg2['new_account']['name']))) {
+              form_set_error('panes][customer][new_account][name', t('The username %name is already taken. Please enter a different name or leave the field blank for your username to be your e-mail address.', array('%name' => $arg2['new_account']['name'])));
+            }
+            else {
+              $arg1->data['new_user']['name'] = $arg2['new_account']['name'];
+            }
           }
-          $arg1->data['new_user']['pass'] = $arg2['new_account']['pass'];
+          // Validate the password.
+          if (variable_get('uc_cart_new_account_password', FALSE)) {
+            if (strcmp($arg2['new_account']['pass'], $arg2['new_account']['pass_confirm'])) {
+              form_set_error('panes][customer][new_account][pass_confirm', t('The passwords you entered did not match. Please try again.'));
+            }
+            if (!empty($arg2['new_account']['pass'])) {
+              $arg1->data['new_user']['hash'] = md5(trim($arg2['new_account']['pass']));
+            }
+          }
         }
       }
 
@@ -196,6 +165,12 @@ function uc_checkout_pane_customer($op, &$arg1, $arg2) {
       return $review;
 
     case 'settings':
+      $form['uc_cart_mail_existing'] = array(
+        '#type' => 'checkbox',
+        '#title' => t("Allow anonymous customers to use an existing account's email address."),
+        '#default_value' => variable_get('uc_cart_mail_existing', TRUE),
+        '#description' => t('If enabled, orders will be attached to the account matching the email address. If disabled, anonymous users using a registered email address must log in or use a different email address.'),
+      );
       $form['uc_cart_email_validation'] = array(
         '#type' => 'checkbox',
         '#title' => t('Require e-mail confirmation in checkout for anonymous customers.'),
@@ -222,7 +197,7 @@ function uc_checkout_pane_customer($op, &$arg1, $arg2) {
 }
 
 /**
- * Get the delivery information.
+ * Gets the delivery information.
  */
 function uc_checkout_pane_delivery($op, &$arg1, $arg2) {
   global $user;
@@ -323,7 +298,7 @@ function uc_checkout_pane_delivery($op, &$arg1, $arg2) {
 }
 
 /**
- * Get the billing information.
+ * Gets the billing information.
  */
 function uc_checkout_pane_billing($op, &$arg1, $arg2) {
   global $user;
@@ -401,16 +376,16 @@ function uc_checkout_pane_billing($op, &$arg1, $arg2) {
       return array('description' => $description, 'contents' => $contents, 'theme' => 'address_pane');
 
     case 'process':
-      $arg1->billing_first_name = $arg2['billing_first_name'];
-      $arg1->billing_last_name = $arg2['billing_last_name'];
-      $arg1->billing_company = $arg2['billing_company'];
-      $arg1->billing_street1 = $arg2['billing_street1'];
-      $arg1->billing_street2 = $arg2['billing_street2'];
-      $arg1->billing_city = $arg2['billing_city'];
-      $arg1->billing_zone = $arg2['billing_zone'];
-      $arg1->billing_postal_code = $arg2['billing_postal_code'];
-      $arg1->billing_country = $arg2['billing_country'];
-      $arg1->billing_phone = $arg2['billing_phone'];
+      $arg1->billing_first_name = isset($arg2['billing_first_name']) ? $arg2['billing_first_name'] : NULL;
+      $arg1->billing_last_name = isset($arg2['billing_last_name']) ? $arg2['billing_last_name'] : NULL;
+      $arg1->billing_company = isset($arg2['billing_company']) ? $arg2['billing_company'] : NULL;
+      $arg1->billing_street1 = isset($arg2['billing_street1']) ? $arg2['billing_street1'] : NULL;
+      $arg1->billing_street2 = isset($arg2['billing_street2']) ? $arg2['billing_street2'] : NULL;
+      $arg1->billing_city = isset($arg2['billing_city']) ? $arg2['billing_city'] : NULL;
+      $arg1->billing_zone = isset($arg2['billing_zone']) ? $arg2['billing_zone'] : NULL;
+      $arg1->billing_postal_code = isset($arg2['billing_postal_code']) ? $arg2['billing_postal_code'] : NULL;
+      $arg1->billing_country = isset($arg2['billing_country']) ? $arg2['billing_country'] : NULL;
+      $arg1->billing_phone = isset($arg2['billing_phone']) ? $arg2['billing_phone'] : NULL;
       return TRUE;
 
     case 'review':
@@ -423,7 +398,7 @@ function uc_checkout_pane_billing($op, &$arg1, $arg2) {
 }
 
 /**
- * Allow a customer to make comments on the order.
+ * Allows a customer to make comments on the order.
  */
 function uc_checkout_pane_comments($op, &$arg1, $arg2) {
   switch ($op) {
@@ -440,13 +415,14 @@ function uc_checkout_pane_comments($op, &$arg1, $arg2) {
         '#type' => 'textarea',
         '#title' => t('Order comments'),
         '#default_value' => $default,
+        '#wysiwyg' => FALSE,
       );
 
       return array('description' => $description, 'contents' => $contents);
 
     case 'process':
+      db_query("DELETE FROM {uc_order_comments} WHERE order_id = %d", $arg1->order_id);
       if (strlen($arg2['comments']) > 0) {
-        db_query("DELETE FROM {uc_order_comments} WHERE order_id = %d", $arg1->order_id);
         uc_order_comment_save($arg1->order_id, 0, $arg2['comments'], 'order', uc_order_state_default('post_checkout'), TRUE);
       }
       return TRUE;
@@ -462,12 +438,11 @@ function uc_checkout_pane_comments($op, &$arg1, $arg2) {
 }
 
 /**
- * Theme the delivery/billing address forms in tables.
+ * Themes the delivery/billing address forms in tables.
  *
+ * @see uc_checkout_pane_delivery()
+ * @see uc_checkout_pane_billing()
  * @ingroup themeable
- * @see
- *   uc_checkout_pane_delivery()
- *   uc_checkout_pane_billing()
  */
 function theme_address_pane($form) {
   $output = '';
@@ -490,10 +465,12 @@ function theme_address_pane($form) {
         $title = ' ';
       }
       $output .= '<tr><td class="field-label">';
+      $output .= '<label for="'. $form[$field]['#id'] .'">';
       if ($form[$field]['#required']) {
         $output .= $req;
       }
-      $output .= $title .'</td><td>'. drupal_render($form[$field]) .'</td></tr>';
+      $output .= $title .'</label></td>';
+      $output .= '<td>'. drupal_render($form[$field]) .'</td></tr>';
     }
   }
   $output .= '</table></div>';
@@ -506,7 +483,7 @@ function theme_address_pane($form) {
 }
 
 /**
- * Find the collapsible pane displayed above the pane with an ID of $pane_id.
+ * Finds the collapsible pane displayed above the pane with an ID of $pane_id.
  */
 function _uc_cart_checkout_prev_pane($panes, $pane_id = NULL) {
   if (is_null($pane_id)) {
@@ -527,7 +504,7 @@ function _uc_cart_checkout_prev_pane($panes, $pane_id = NULL) {
 }
 
 /**
- * Find the pane that displays below the pane with an ID of $pane_id.
+ * Finds the pane that displays below the pane with an ID of $pane_id.
  */
 function _uc_cart_checkout_next_pane($panes, $pane_id = NULL) {
   if (is_null($pane_id)) {
@@ -550,7 +527,7 @@ function _uc_cart_checkout_next_pane($panes, $pane_id = NULL) {
 }
 
 /**
- * Build a list of checkout panes defined in the enabled modules.
+ * Builds a list of checkout panes defined in the enabled modules.
  */
 function _checkout_pane_list($action = NULL) {
   static $panes;
@@ -584,7 +561,7 @@ function _checkout_pane_list($action = NULL) {
 }
 
 /**
- * Return data from a checkout pane by pane ID and the array key.
+ * Returns data from a checkout pane by pane ID and the array key.
  */
 function _checkout_pane_data($pane_id, $key) {
   $panes = _checkout_pane_list();
@@ -596,10 +573,11 @@ function _checkout_pane_data($pane_id, $key) {
 }
 
 /**
- * Format the cart contents table on the checkout page.
+ * Formats the cart contents table on the checkout page.
  *
  * @param $show_subtotal
  *   TRUE or FALSE indicating if you want a subtotal row displayed in the table.
+ *
  * @return
  *   The HTML output for the cart review table.
  *
@@ -662,4 +640,50 @@ function theme_cart_review_table($show_subtotal = TRUE) {
   }
 
   return theme('table', $header, $rows, array('class' => 'cart-review'));
+}
+
+/**
+ * Themes cart items on the checkout review order page.
+ *
+ * @param $items
+ *   An associative array containing cart items, with keys:
+ *   - qty: Quantity in cart.
+ *   - title: Item title.
+ *   - price: Item price.
+ *   - desc: Item description.
+ *
+ * @return
+ *   A string of HTML for the page contents.
+ *
+ * @ingroup themeable
+ */
+function theme_uc_checkout_pane_cart_review($items) {
+  $context = array(
+    'revision' => 'themed',
+    'type' => 'cart_item',
+    'subject' => array(),
+  );
+
+  $rows = array();
+
+  foreach ($items as $item) {
+    $price_info = array(
+      'price' => $item->price,
+      'qty' => $item->qty,
+    );
+
+    $context['subject'] = array(
+      'cart' => $items,
+      'cart_item' => $item,
+      'node' => node_load($item->nid),
+    );
+
+    $rows[] = array(
+      array('data' => $item->qty . '&times;', 'class' => 'qty'),
+      array('data' => check_plain($item->title) . uc_product_get_description($item), 'class' => 'products'),
+      array('data' => uc_price($price_info, $context), 'class' => 'price'),
+    );
+  }
+
+  return theme('table', NULL, $rows, array('class' => 'cart-review'));
 }

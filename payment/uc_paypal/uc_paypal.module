@@ -76,7 +76,9 @@ function uc_paypal_menu() {
   return $items;
 }
 
-// Make sure PayPal always has access to send IPNs.
+/**
+ * Access callback. Makes sure PayPal always has access to send IPNs.
+ */
 function uc_paypal_ipn_access() {
   return TRUE;
 }
@@ -139,7 +141,7 @@ function uc_paypal_cart_pane() {
  */
 function uc_paypal_payment_gateway() {
   if (!module_exists('uc_credit')) {
-    drupal_set_message(t('You must <a href="@modules">enable the Credit Card module</a> to use PayPal Website Payments Pro.', array('@modules' => url('admin/modules', array('fragment' => 'edit-modules-ubercart-payment')))), 'warning');
+    drupal_set_message(t('You must <a href="@modules">enable the Credit Card module</a> to use PayPal Website Payments Pro.', array('@modules' => url('admin/build/modules', array('fragment' => 'edit-modules-ubercart-payment')))), 'warning');
     return;
   }
 
@@ -159,16 +161,20 @@ function uc_paypal_payment_gateway() {
  * Implements hook_payment_method().
  */
 function uc_paypal_payment_method() {
-  $path = base_path() . drupal_get_path('module', 'uc_credit');
-  $title1 = '<img src="https://www.paypal.com/en_US/i/logo/PayPal_mark_37x23.gif" style="position: relative; top: 5px; margin-right: 4px;" />'
-         . t('PayPal - pay without sharing your financial information.');
-  $title2 = '<br /><span id="paypal-includes" style="padding-left: 5.5em;">'
-          . t('<b>Includes:</b>');
-  $cc_types = array('visa', 'mastercard', 'discover', 'amex', 'echeck');
-  foreach ($cc_types as $type) {
-    $title2 .= ' <img src="'. $path .'/images/'. $type .'.gif" style="position: relative; top: 5px;" />';
+  $title1 = '<img src="https://www.paypal.com/en_US/i/logo/PayPal_mark_37x23.gif" alt="PayPal" class="uc-credit-cctype" />'
+         . ' ' . t('PayPal - pay without sharing your financial information.');
+  $title2 = '<br /><span id="paypal-includes">' . t('Includes:');
+  $cc_types = array(
+    'visa' => t('Visa'),
+    'mastercard' => t('MasterCard'),
+    'discover' => t('Discover'),
+    'amex' => t('American Express'),
+    'echeck' => t('eCheck'),
+  );
+  foreach ($cc_types as $type => $label) {
+    $title2 .= ' ' . theme('image', drupal_get_path('module', 'uc_credit') . '/images/' . $type . '.gif', $label,  '', array('class' => 'uc-credit-cctype uc-credit-cctype-' . $type));
   }
-  $title2 .= ' <img src="https://www.paypal.com/en_US/i/logo/PayPal_mark_37x23.gif" style="position: relative; top: 5px; margin-right: 4px;" /></span>';
+  $title2 .= ' <img src="https://www.paypal.com/en_US/i/logo/PayPal_mark_37x23.gif" alt="PayPal" class="uc-credit-cctype" /></span>';
 
   $methods[] = array(
     'id' => 'paypal_wps',
@@ -454,12 +460,6 @@ function uc_paypal_wpp_charge($order_id, $amount, $data) {
       // fall through
     case 'Failure':
       $message = t('<b>@type failed.</b>', array('@type' => $types[$data['txn_type']])) . _uc_paypal_build_error_messages($nvp_response);
-      if ($data['txn_type'] != UC_CREDIT_PRIOR_AUTH_CAPTURE) {
-        $message .= '<br />'. t('<b>Address:</b> @avscode', array('@avscode' => _uc_paypal_avscode_message($nvp_response['AVSCODE'])));
-        if (variable_get('uc_credit_cvv_enabled', TRUE)) {
-          $message .= '<br />'. t('<b>CVV2:</b> @cvvmatch', array('@cvvmatch' => _uc_paypal_cvvmatch_message($nvp_response['CVV2MATCH'])));
-        }
-      }
       $result = array(
         'success' => FALSE,
         'message' => $message,
@@ -568,7 +568,6 @@ function uc_payment_method_paypal_wps($op, &$arg1) {
       $form['uc_paypal_wps_submit_method'] = array(
         '#type' => 'radios',
         '#title' => t('PayPal cart submission method'),
-        '#description' => t('You must use a single line item on your site if you have any fees or discounts besides shipping and tax.'),
         '#options' => array(
           'single' => t('Submit the whole order as a single line item.'),
           'itemized' => t('Submit an itemized order showing each product and description.'),
@@ -628,11 +627,10 @@ function uc_payment_method_paypal_ec($op, &$arg1) {
       );
       $form['uc_paypal_ec_landingpage_style'] = array(
         '#type' => 'radios',
-        '#title' => t('PayPal landing page style'),
-        '#description' => t('PayPal Express Checkout landing page may show a credit card submission form (allowing credit card payments without a PayPal account) or may show only a PayPal login form, thereby restricting payment to PayPal users.'),
+        '#title' => t('Default PayPal landing page'),
         '#options' => array(
-          'Billing' => t('Show credit card submission form.'),
-          'Login' => t('Do not show credit card submission form.'),
+          'Billing' => t('Credit card submission form.'),
+          'Login' => t('Account login form.'),
         ),
         '#default_value' => variable_get('uc_paypal_ec_landingpage_style', 'Billing'),
       );
@@ -733,10 +731,6 @@ function uc_paypal_ec_checkout($form, &$form_state) {
  * @see uc_paypal_ec_form_submit()
  */
 function uc_paypal_ec_form() {
-  if (!variable_get('uc_cap_uc_paypal_ec_enabled', FALSE)) {
-    return;
-  }
-
   // Hack to allow the image button to submit.
   if (isset($_POST['submit_x'])) {
     $form['submit'] = array(
@@ -803,6 +797,7 @@ function uc_paypal_ec_form_submit($form, &$form_state) {
   $_SESSION['cart_order'] = $order->order_id;
   $_SESSION['TOKEN'] = $nvp_response['TOKEN'];
 
+  $sandbox = '';
   if (strpos(variable_get('uc_paypal_wpp_server', 'https://api-3t.sandbox.paypal.com/nvp'), 'sandbox') > 0) {
     $sandbox = 'sandbox.';
   }
@@ -811,6 +806,11 @@ function uc_paypal_ec_form_submit($form, &$form_state) {
   exit();
 }
 
+/**
+ * Additional submit handler for uc_cart_checkout_review_form().
+ *
+ * @see uc_cart_checkout_review_form()
+ */
 function uc_paypal_ec_submit_form_submit($form, &$form_state) {
   $order = uc_order_load($_SESSION['cart_order']);
 
@@ -876,7 +876,9 @@ function uc_paypal_ec_submit_form_submit($form, &$form_state) {
   $form_state['redirect'] = 'cart/checkout/complete';
 }
 
-// Returns the form elements for the Website Payments Standard form.
+/**
+ * Returns the form elements for the Website Payments Standard form.
+ */
 function uc_paypal_wps_form($form_state, $order) {
   $shipping = 0;
   foreach ($order->line_items as $item) {
@@ -899,6 +901,7 @@ function uc_paypal_wps_form($form_state, $order) {
     $country = array(0 => array('country_iso_code_2' => 'US'));
   }
 
+  $phone = '';
   for ($i = 0; $i < strlen($order->{$address .'_phone'}); $i++) {
     if (is_numeric($order->{$address .'_phone'}[$i])) {
       $phone .= $order->{$address .'_phone'}[$i];
@@ -946,7 +949,7 @@ function uc_paypal_wps_form($form_state, $order) {
     'no_note' => 1,
     'no_shipping' => variable_get('uc_paypal_wps_no_shipping', 1),
     'return' => url('uc_paypal/wps/complete/'. $order->order_id, array('absolute' => TRUE)),
-    'rm' => 2,
+    'rm' => 1,
 
     // Transaction information
     'currency_code' => variable_get('uc_paypal_wps_currency', 'USD'),
@@ -1052,7 +1055,9 @@ function uc_paypal_wps_form($form_state, $order) {
   return $form;
 }
 
-// Sends a request to PayPal and returns a response array.
+/**
+ * Sends a request to PayPal and returns a response array.
+ */
 function uc_paypal_api_request($request, $server) {
   // We use $request += to add API credentials so that
   // if a key already exists, it will not be overridden
@@ -1075,7 +1080,7 @@ function uc_paypal_api_request($request, $server) {
   curl_setopt($ch, CURLOPT_POST, 1);
   curl_setopt($ch, CURLOPT_POSTFIELDS, $data);
   curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
-  curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, 0);
+  curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, 1);
   curl_setopt($ch, CURLOPT_NOPROGRESS, 1);
   curl_setopt($ch, CURLOPT_FOLLOWLOCATION, 0);
   $response = curl_exec($ch);
@@ -1087,7 +1092,9 @@ function uc_paypal_api_request($request, $server) {
   return _uc_paypal_nvp_to_array($response);
 }
 
-// Returns the description and subtotal of the products on an order.
+/**
+ * Returns the description and subtotal of the products on an order.
+ */
 function _uc_paypal_product_details($items) {
   $desc = '';
   $subtotal = 0;
@@ -1097,7 +1104,7 @@ function _uc_paypal_product_details($items) {
       if (!empty($desc)) {
         $desc .= ' / ';
       }
-      $desc .= $item->qty .'× '. $item->title;
+      $desc .= $item->qty .'x '. $item->title;
       $subtotal += $item->qty * $item->price;
     }
   }
@@ -1105,7 +1112,9 @@ function _uc_paypal_product_details($items) {
   return array($desc, $subtotal);
 }
 
-// Returns the PayPal approved credit card type for a card number.
+/**
+ * Returns the PayPal approved credit card type for a card number.
+ */
 function _uc_paypal_card_type($cc_number) {
   switch (substr(strval($cc_number), 0, 1)) {
     case '3':
@@ -1121,7 +1130,9 @@ function _uc_paypal_card_type($cc_number) {
   return FALSE;
 }
 
-// Turns PayPal's NVP response to an API call into an associative array.
+/**
+ * Turns PayPal's NVP response to an API call into an associative array.
+ */
 function _uc_paypal_nvp_to_array($nvpstr) {
   foreach (explode('&', $nvpstr) as $nvp) {
     list($key, $value) = explode('=', $nvp);
@@ -1131,9 +1142,9 @@ function _uc_paypal_nvp_to_array($nvpstr) {
   return $nvp_array;
 }
 
-
-
-// Returns a human readable message for the AVS code.
+/**
+ * Returns a human readable message for the AVS code.
+ */
 function _uc_paypal_avscode_message($code) {
   if (is_numeric($code)) {
     switch ($code) {
@@ -1147,7 +1158,6 @@ function _uc_paypal_avscode_message($code) {
         return t('The merchant did not provide AVS information. Not processed.');
       case '4':
         return t('Address not checked, or acquirer had no response. Service not available.');
-      case 'Null':
       default:
         return t('No AVS response was obtained.');
     }
@@ -1181,12 +1191,16 @@ function _uc_paypal_avscode_message($code) {
       return t('Service not supported');
     case 'U':
       return t('Unavailable');
+    case 'Null':
+      return t('No AVS response was obtained.');
     default:
       return t('An unknown error occurred.');
   }
 }
 
-// Returns a human readable message for the CVV2 match code.
+/**
+ * Returns a human readable message for the CVV2 match code.
+ */
 function _uc_paypal_cvvmatch_message($code) {
   if (is_numeric($code)) {
     switch ($code) {
@@ -1223,7 +1237,9 @@ function _uc_paypal_cvvmatch_message($code) {
   }
 }
 
-// Return a message for the pending reason of a PayPal payment.
+/**
+ * Return a message for the pending reason of a PayPal payment.
+ */
 function _uc_paypal_pending_message($reason) {
   switch ($reason) {
     case 'address':
@@ -1235,6 +1251,7 @@ function _uc_paypal_pending_message($reason) {
     case 'intl':
       return t('You must manually accept or deny this international payment from your Account Overview.');
     case 'multi-currency':
+    case 'multi_currency':
       return t('You must manually accept or deny a payment of this currency from your Account Overview.');
     case 'unilateral':
       return t('Your e-mail address is not yet registered or confirmed.');
@@ -1244,11 +1261,13 @@ function _uc_paypal_pending_message($reason) {
       return t('You must verify your account before you can accept this payment.');
     case 'other':
     default:
-      return t('Reason unknown; contact PayPal Customer Service for more information.');
+      return t('Reason "@reason" unknown; contact PayPal Customer Service for more information.', array('@reason' => $reason));
   }
 }
 
-// Return a message for the reason code of a PayPal reversal.
+/**
+ * Return a message for the reason code of a PayPal reversal.
+ */
 function _uc_paypal_reversal_message($reason) {
   switch ($reason) {
     case 'chargeback':
@@ -1261,11 +1280,13 @@ function _uc_paypal_reversal_message($reason) {
       return t('You gave the customer a refund.');
     case 'other':
     default:
-      return t('Reason unknown; contact PayPal Customer Service for more information.');
+      return t('Reason "@reason" unknown; contact PayPal Customer Service for more information.', array('@reason' => $reason));
   }
 }
 
-// Returns an array of possible currency codes.
+/**
+ * Returns an array of possible currency codes.
+ */
 function _uc_paypal_currency_array() {
   return drupal_map_assoc(array('AUD', 'BRL', 'CAD', 'CHF', 'CZK', 'DKK', 'EUR', 'GBP', 'HKD', 'HUF', 'ILS', 'JPY', 'MXN', 'MYR', 'NOK', 'NZD', 'PHP', 'PLN', 'SEK', 'SGD', 'THB', 'TWD', 'USD'));
 }
