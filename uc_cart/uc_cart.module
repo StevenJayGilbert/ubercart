@@ -1224,8 +1224,6 @@ function uc_cart_complete_sale($order, $login = FALSE) {
   if ($type == 'new_user' && $login && !$user->uid) {
     $type = 'new_user_logged_in';
     $user = user_load($order->uid);
-    //reset the session for the newly logged in user.
-    user_authenticate_finalize();
   }
 
   $variables['!new_username'] = isset($order->data['new_user']['name']) ? $order->data['new_user']['name'] : '';
