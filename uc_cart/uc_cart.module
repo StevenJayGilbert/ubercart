@@ -1226,14 +1226,7 @@ function uc_cart_complete_sale($order, $login = FALSE) {
     $user = user_load($order->uid);
     
     //copied from user_authenticate_finalize($edit);
-    watchdog('uc_cart', 'Session opened for %name.', array('%name' => $user->name));
-    // Update the user table timestamp noting user has logged in.
-    // This is also used to invalidate one-time login links.
-    $user->login = time();
-    db_query("UPDATE {users} SET login = %d WHERE uid = %d", $user->login, $user->uid);
-
-    // Regenerate the session ID to prevent against session fixation attacks.
-    sess_regenerate();
+    watchdog('uc_cart', 'Account created for %name.', array('%name' => $user->name));
     
     //give other modules a chance to take action after we login a user
     module_invoke_all('uc_cart_after_user_load', $user, $order);
