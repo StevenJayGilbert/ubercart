@@ -1226,7 +1226,7 @@ function uc_cart_complete_sale($order, $login = FALSE) {
     $user = user_load($order->uid);
     
     //copied from user_authenticate_finalize($edit);
-    watchdog('uc_cart', 'Account created for %name.', array('%name' => $user->name));
+    watchdog('uc_cart', 'Auto login for %name.', array('%name' => $user->name));
     
     //give other modules a chance to take action after we login a user
     module_invoke_all('uc_cart_after_user_load', $user, $order);
