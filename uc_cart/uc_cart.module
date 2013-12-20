@@ -1231,8 +1231,8 @@ function uc_cart_complete_sale($order, $login = FALSE) {
   if ($type == 'new_user' && $login && !$user->uid) {
     $type = 'new_user_logged_in';
     $account = user_load($order->uid);
-    user_external_login($account);
-    module_invoke_all('uc_cart_after_user_load', $user, $order);
+    module_invoke_all('uc_cart_before_user_login', $account, $order);
+    user_external_login($account); 
   }
 
   $variables['!new_username'] = isset($order->data['new_user']['name']) ? $order->data['new_user']['name'] : '';
