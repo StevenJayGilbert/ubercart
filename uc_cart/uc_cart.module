@@ -1226,6 +1226,12 @@ watchdog('test',
 
     // Invoke the checkout complete trigger and hook.
     $account = user_load($order->uid);
+    
+$data = array('login' => $login,  'user' => $user, 'order' => $order);  
+watchdog('test',
+ t('uc_cart_complete_sale before module invoke <pre>!var</pre>',
+      array('!var' => print_r($data, true))));    
+    
     module_invoke_all('uc_checkout_complete', $order, $account);
     ca_pull_trigger('uc_checkout_complete', $order, $account);
   }
@@ -1276,6 +1282,7 @@ watchdog('test',
  */
 function uc_cart_complete_sale_account($order) {
   // Order already has a user ID, so the user was logged in during checkout.
+global $user;  
   if ($order->uid) {
     $order->data['complete_sale'] = 'logged_in';
     return;
@@ -1304,9 +1311,19 @@ function uc_cart_complete_sale_account($order) {
   if (isset($order->data['new_user']['name'])) {
     $fields['name'] = $order->data['new_user']['name'];
   }
+  
+$data = array('user' => $user, 'order' => $order);  
+watchdog('test',
+ t('uc_cart_complete_sale_account before user save <pre>!var</pre>',
+      array('!var' => print_r($data, true))));
 
   // Create the account.
   $account = user_save('', $fields);
+
+$data = array('user' => $user, 'order' => $order);  
+watchdog('test',
+ t('uc_cart_complete_sale_account after user save <pre>!var</pre>',
+      array('!var' => print_r($data, true))));
 
   // Override the password, if specified.
   if (isset($order->data['new_user']['hash'])) {
