@@ -430,6 +430,7 @@ function uc_usps_quote($products, $details, $method) {
                 $services[$id]['rate'] = 0;
               }
               $services[$id]['rate'] += uc_usps_markup((string)$service->Postage);
+              $services[$id]['count']++;
             }
           }
           else {
@@ -460,6 +461,7 @@ function uc_usps_quote($products, $details, $method) {
               else {
                 $services[$classid]['rate'] += uc_usps_markup((string)$postage->Rate);
               }
+              $services[$classid]['count']++;
             }
           }
         }
@@ -471,6 +473,11 @@ function uc_usps_quote($products, $details, $method) {
   $usps_services = array_filter(variable_get($method_services, array_keys(call_user_func('_'. $method_services))));
   foreach ($services as $service => $quote) {
     if ($service != 'data' && !in_array($service, $usps_services)) {
+      unset($services[$service]);
+    }
+    //if shipping products in seperate packages the rate is the sum of both so
+    // make sure that packages can ship that rate.
+    if ($service != 'data' && $quote['count'] < count($packages)) {
       unset($services[$service]);
     }
   }
